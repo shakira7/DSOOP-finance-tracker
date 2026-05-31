@@ -50,8 +50,8 @@ public class FinanceAppUI extends JFrame {
         dateField.setText(LocalDate.now().toString());
 
         JTabbedPane tabbedPane = new JTabbedPane();
-        tabbedPane.addTab("📱 Main App Dashboard", createNormalAppPanel());
-        tabbedPane.addTab("⚡ Testing & Speed Check", createDevPanel());
+        tabbedPane.addTab("Main App Dashboard", createNormalAppPanel());
+        tabbedPane.addTab("Testing & Speed Check", createDevPanel());
         add(tabbedPane);
         
         updateSummaryAndPredictions();
@@ -103,7 +103,7 @@ public class FinanceAppUI extends JFrame {
         sfGbc.gridx = 4; searchFilterBar.add(new JLabel(" To:"), sfGbc);
         sfGbc.gridx = 5; searchFilterBar.add(filterEndField, sfGbc);
         
-        JButton applyFilterBtn = new JButton("🔍 Search / Filter");
+        JButton applyFilterBtn = new JButton("Search / Filter");
         applyFilterBtn.setForeground(Color.BLACK);
         sfGbc.gridx = 6; sfGbc.weightx = 1.0; searchFilterBar.add(applyFilterBtn, sfGbc);
         
