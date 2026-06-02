@@ -1,0 +1,12 @@
+# NetBeans specific temporary files
+**/nbproject/private/
+build/
+dist/
+
+# Maven build outputs 
+target/
+
+# System temporary files (mac and windows junk)
+.DS_Store
+Thumbs.db
+*.log
