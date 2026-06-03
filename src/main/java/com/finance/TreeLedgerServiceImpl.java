@@ -1,29 +1,31 @@
 package com.finance;
 
 import java.time.LocalDate;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.TreeSet;
 
 public class TreeLedgerServiceImpl implements LedgerService {
-    private final TreeSet<Expense> ledger = new TreeSet<>();
-    private final Map<String, TreeMap<LocalDate, List<Expense>>> categoryTreeMap = new HashMap<>();
+    private final TreeSet<Expense> ledger = new TreeSet<>((a, b) -> {
+        int d = a.getDate().compareTo(b.getDate());
+        if (d != 0) return d;
+        return a.getId().compareTo(b.getId());
+    });
 
     @Override
     public void addExpense(Expense expense) {
         ledger.add(expense);
-        categoryTreeMap
-            .computeIfAbsent(expense.getCategory(), k -> new TreeMap<>())
-            .computeIfAbsent(expense.getDate(), k -> new ArrayList<>())
-            .add(expense);
     }
 
     @Override
     public double getTotalByCategory(String category) {
-        TreeMap<LocalDate, List<Expense>> categoryData = categoryTreeMap.get(category);
-        if (categoryData == null) return 0.0;
-        return categoryData.values().stream()
-                .flatMap(List::stream)
-                .mapToDouble(Expense::getAmount)
-                .sum();
+        double total = 0.0;
+        for (Expense e : ledger) {
+            if (e.getCategory().equalsIgnoreCase(category)) {
+                total += e.getAmount();
+            }
+        }
+        return total;
     }
 
     @Override
@@ -34,15 +36,11 @@ public class TreeLedgerServiceImpl implements LedgerService {
     }
 
     @Override
-    public void clear() { ledger.clear(); categoryTreeMap.clear(); }
+    public void clear() { ledger.clear(); }
     
     @Override
-        public List<Expense> getAllExpenses() {
-        return new ArrayList<>(ledger);
-    }
+    public List<Expense> getAllExpenses() { return new ArrayList<>(ledger); }
         
     @Override
-    public void removeExpense(String id) {
-    ledger.removeIf(expense -> expense.getId().equals(id));
-}
+    public void removeExpense(String id) { ledger.removeIf(e -> e.getId().equals(id)); }
 }

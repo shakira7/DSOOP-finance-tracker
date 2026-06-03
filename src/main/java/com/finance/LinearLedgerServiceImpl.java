@@ -1,7 +1,10 @@
 package com.finance;
 
 import java.time.LocalDate;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class LinearLedgerServiceImpl implements LedgerService {
     private final List<Expense> ledger = new ArrayList<>();
@@ -9,7 +12,16 @@ public class LinearLedgerServiceImpl implements LedgerService {
 
     @Override
     public void addExpense(Expense expense) {
-        ledger.add(expense);
+        int insertionIndex = 0;
+        for (int i = 0; i < ledger.size(); i++) {
+            if (ledger.get(i).getDate().isAfter(expense.getDate())) {
+                break;
+            }
+            insertionIndex++;
+        }
+        
+        ledger.add(insertionIndex, expense);
+        
         categoryTotals.put(expense.getCategory(), 
             categoryTotals.getOrDefault(expense.getCategory(), 0.0) + expense.getAmount());
     }
@@ -40,6 +52,6 @@ public class LinearLedgerServiceImpl implements LedgerService {
     
     @Override
     public void removeExpense(String id) {
-    ledger.removeIf(expense -> expense.getId().equals(id));
-}
+        ledger.removeIf(expense -> expense.getId().equals(id));
+    }
 }

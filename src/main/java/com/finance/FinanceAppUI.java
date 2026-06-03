@@ -1,12 +1,18 @@
 package com.finance;
 
-import javax.swing.*;
-import javax.swing.border.AbstractBorder;
-import javax.swing.border.EmptyBorder;
-import javax.swing.table.DefaultTableCellRenderer;
-import javax.swing.table.DefaultTableModel;
-import javax.swing.table.JTableHeader;
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.GridLayout;
+import java.awt.Insets;
+import java.awt.RenderingHints;
 import java.awt.geom.RoundRectangle2D;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -17,6 +23,31 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.function.Supplier;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JSeparator;
+import javax.swing.JTabbedPane;
+import javax.swing.JTable;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+import javax.swing.UIManager;
+import javax.swing.border.AbstractBorder;
+import javax.swing.border.EmptyBorder;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.JTableHeader;
 
 public class FinanceAppUI extends JFrame {
     private LedgerService currentEngine = new LinearLedgerServiceImpl();
@@ -332,7 +363,7 @@ public class FinanceAppUI extends JFrame {
                 return;
             }
 
-            String countInput = JOptionPane.showInputDialog(this, "How many test records would you like to generate?", "200000");
+            String countInput = JOptionPane.showInputDialog(this, "How many baseline records would you like to generate?", "100000");
             if (countInput == null || countInput.trim().isEmpty()) {
                 return;
             }
@@ -346,30 +377,59 @@ public class FinanceAppUI extends JFrame {
                 return;
             }
 
-            logArea.append("⚙️ Generating " + recordCount + " records from December 2025 backward into the past...\n");
+            logArea.append("⚙️ Generating " + recordCount + " records backward from December 2025 into the past...\n");
+
+            LocalDate latestDate = LocalDate.of(2025, 12, 31);
+            String[] categories = {"GROCERIES", "RENT", "UTILITIES", "ENTERTAINMENT", "MISC"};
+            Random seededRand = new Random(seedValue);
+            List<Expense> generatedExpenses = new ArrayList<>(recordCount);
+            for (int i = 0; i < recordCount; i++) {
+                long randomDaysBackward = (long) (seededRand.nextDouble() * (365 * 5));
+                double amount = 5.0 + (seededRand.nextDouble() * 495.0);
+                String cat = categories[seededRand.nextInt(categories.length)];
+
+                generatedExpenses.add(new Expense(
+                        UUID.nameUUIDFromBytes(("id_" + seedValue + "_" + i).getBytes()).toString().substring(0, 8),
+                        Math.round(amount * 100.0) / 100.0,
+                        latestDate.minusDays(randomDaysBackward),
+                        cat
+                ));
+            }
 
             Timer timer = new Timer(50, event -> {
-                long start = System.currentTimeMillis();
-                LocalDate latestDate = LocalDate.of(2025, 12, 31);
-                String[] categories = {"GROCERIES", "RENT", "UTILITIES", "ENTERTAINMENT", "MISC"};
-                Random seededRand = new Random(seedValue);
-
-                for (int i = 0; i < recordCount; i++) {
-                    long randomDaysBackward = (long) (seededRand.nextDouble() * (365 * 5));
-                    double amount = 5.0 + (seededRand.nextDouble() * 495.0);
-                    String cat = categories[seededRand.nextInt(categories.length)];
-
-                    currentEngine.addExpense(new Expense(
-                            UUID.nameUUIDFromBytes(("id_" + seedValue + "_" + i).getBytes()).toString().substring(0, 8),
-                            Math.round(amount * 100.0) / 100.0,
-                            latestDate.minusDays(randomDaysBackward),
-                            cat
-                    ));
+                long start = System.nanoTime();
+                for (Expense expense : generatedExpenses) {
+                    currentEngine.addExpense(expense);
                 }
-                long end = System.currentTimeMillis();
-                logArea.append("➔ [addExpense()] Finished adding " + recordCount + " items. Time taken: " + (end - start) + " ms.\n\n");
+                long end = System.nanoTime();
+                logArea.append("➔ [addExpense()] Finished adding " + recordCount + " items. Time taken: " + ((end - start) / 1_000_000) + " ms.\n\n");
 
                 applyFiltersAndRefreshTable();
+
+                SwingUtilities.invokeLater(() -> {
+                    String sizeInput = JOptionPane.showInputDialog(this, "How many distinct unique items would you like to use for testing?", "5000");
+                    if (sizeInput == null || sizeInput.trim().isEmpty()) return;
+                    int size;
+                    try {
+                        size = Integer.parseInt(sizeInput.trim());
+                        if (size <= 0) throw new IllegalArgumentException();
+                    } catch (Exception ex) {
+                        JOptionPane.showMessageDialog(this, "Enter a valid positive integer.", "Error", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+
+                    String[] locations = {"Front", "Middle", "End"};
+                    String chosenLocation = (String) JOptionPane.showInputDialog(this, 
+                            "Where should the data arrive conceptually in relation to the collection sequence?", 
+                            "Select Location", JOptionPane.QUESTION_MESSAGE, null, locations, locations[0]);
+                    if (chosenLocation == null) return;
+
+                    int posIndex = 0;
+                    if ("Middle".equalsIgnoreCase(chosenLocation)) posIndex = 1;
+                    if ("End".equalsIgnoreCase(chosenLocation)) posIndex = 2;
+
+                    performUniqueInsertion(size, posIndex);
+                });
             });
             timer.setRepeats(false);
             timer.start();
@@ -385,64 +445,155 @@ public class FinanceAppUI extends JFrame {
 
         profileBtn.addActionListener(e -> {
             logArea.append("📋 TESTING METHOD RUNTIMES...\n");
-            String[] categories = {"GROCERIES", "RENT", "UTILITIES", "ENTERTAINMENT", "MISC"};
-            
-            long startCatNano = System.nanoTime();
-            for (int i = 0; i < 1000; i++) {
-                for (String cat : categories) {
-                    currentEngine.getTotalByCategory(cat);
-                }
+            String sizeInput = JOptionPane.showInputDialog(this,
+                    "Enter comma-separated sizes for addExpense benchmark:\n(default: 100000,200000,500000,1000000)",
+                    "100000,200000,500000,1000000");
+            if (sizeInput == null || sizeInput.trim().isEmpty()) {
+                appendLog("⏩ Benchmark canceled.\n\n");
+                return;
             }
-            long endCatNano = System.nanoTime();
-            double avgCatTime = ((endCatNano - startCatNano) / 1000.0) / 1_000_000.0;
-            logArea.append(String.format("➔ [getTotalByCategory()] Time to fetch category sums: %.4f ms\n", avgCatTime));
 
-            LocalDate searchStart = LocalDate.of(2022, 1, 1);
-            LocalDate searchEnd = LocalDate.of(2022, 3, 1);
-            long startRangeNano = System.nanoTime();
-            List<Expense> rangeResults = currentEngine.getExpensesInDateRange(searchStart, searchEnd);
-            long endRangeNano = System.nanoTime();
-            logArea.append(String.format("➔ [getExpensesInDateRange()] Found %d items between dates in: %.4f ms\n", rangeResults.size(), (endRangeNano - startRangeNano)/1_000_000.0));
-
-            long startAllNano = System.nanoTime();
-            List<Expense> allResults = currentEngine.getAllExpenses();
-            long endAllNano = System.nanoTime();
-            logArea.append(String.format("➔ [getAllExpenses()] Retrieved all %d list entries in: %.4f ms\n", allResults.size(), (endAllNano - startAllNano)/1_000_000.0));
-
-            long startDeleteNano = System.nanoTime();
-            currentEngine.removeExpense("NON_EXISTENT_ID_FOR_BENCHMARK");
-            long endDeleteNano = System.nanoTime();
-            logArea.append(String.format("➔ [removeExpense()] Single id removal traversal completed in: %.4f ms\n", (endDeleteNano - startDeleteNano)/1_000_000.0));
-
-            String yearInput = JOptionPane.showInputDialog(this, "Enter a year to benchmark batch removal speed (or type 'X' to cancel):");
-            if (yearInput != null && !yearInput.trim().isEmpty() && !yearInput.trim().equalsIgnoreCase("X")) {
+            String[] tokens = sizeInput.split("[,\\s]+");
+            List<Integer> sizes = new ArrayList<>();
+            for (String token : tokens) {
                 try {
-                    int targetYear = Integer.parseInt(yearInput.trim());
-                    LocalDate yearStart = LocalDate.of(targetYear, 1, 1);
-                    LocalDate yearEnd = LocalDate.of(targetYear, 12, 31);
-                    
-                    logArea.append(String.format("⏳ Batch cleaning all records for the year %d...\n", targetYear));
-                    
-                    long startBatchDelete = System.currentTimeMillis();
-                    List<Expense> elementsInYear = currentEngine.getExpensesInDateRange(yearStart, yearEnd);
-                    int batchCount = elementsInYear.size();
-                    
-                    for (Expense exp : elementsInYear) {
-                        currentEngine.removeExpense(exp.getId());
-                    }
-                    long endBatchDelete = System.currentTimeMillis();
-                    
-                    logArea.append(String.format("➔ [Batch Delete Year] Cleaned %d records for %d in: %d ms\n\n", batchCount, targetYear, (endBatchDelete - startBatchDelete)));
-                    applyFiltersAndRefreshTable();
-                } catch (Exception ex) {
-                    logArea.append("❌ Year benchmark aborted due to formatting processing issue.\n\n");
+                    int size = Integer.parseInt(token.trim());
+                    if (size > 0) sizes.add(size);
+                } catch (NumberFormatException ignored) {
                 }
-            } else {
-                logArea.append("⏩ Year deletion benchmark canceled by configuration parameter input.\n\n");
             }
+
+            if (sizes.isEmpty()) {
+                appendLog("❌ No valid benchmark sizes provided.\n\n");
+                return;
+            }
+
+            sizes.sort(Integer::compare);
+            int maxSize = sizes.get(sizes.size() - 1);
+            List<Expense> expenses = buildBenchmarkExpenses(maxSize);
+            int trialCount = 4;
+            appendLog(String.format("⏳ Running addExpense benchmark (%d sizes, %d trials each)...\n", sizes.size(), trialCount));
+
+            new Thread(() -> {
+                appendLog("🔧 Warming up the JVM and data structures...\n");
+                warmupEngine(new LinearLedgerServiceImpl(), expenses.subList(0, Math.min(10000, maxSize)));
+                warmupEngine(new TreeLedgerServiceImpl(), expenses.subList(0, Math.min(10000, maxSize)));
+
+                for (int size : sizes) {
+                    List<Expense> subset = expenses.subList(0, size);
+                    BenchmarkResult linear = benchmarkAddExpense("ArrayList + HashMap", LinearLedgerServiceImpl::new, subset, trialCount);
+                    BenchmarkResult tree = benchmarkAddExpense("TreeSet + TreeMap", TreeLedgerServiceImpl::new, subset, trialCount);
+
+                    appendLog(String.format("➔ [%s] %d items: %.1f ns/item, avg %.3f ms over %d runs\n",
+                            linear.engineName, linear.size, linear.averageNsPerItem, linear.averageMs, trialCount));
+                    appendLog(String.format("➔ [%s] %d items: %.1f ns/item, avg %.3f ms over %d runs\n",
+                            tree.engineName, tree.size, tree.averageNsPerItem, tree.averageMs, trialCount));
+                    appendLog("\n");
+                }
+                appendLog("✅ Benchmark complete.\n\n");
+            }).start();
         });
 
         return devPanel;
+    }
+
+    private void performUniqueInsertion(int count, int positionIndex) {
+        List<Expense> existing = currentEngine.getAllExpenses();
+
+        List<Expense> sorted = new ArrayList<>(existing);
+        sorted.sort((a, b) -> {
+            int d = a.getDate().compareTo(b.getDate());
+            if (d != 0) return d;
+            return a.getId().compareTo(b.getId());
+        });
+
+        LocalDate earliest = sorted.isEmpty() ? LocalDate.now() : sorted.get(0).getDate();
+        LocalDate latest = sorted.isEmpty() ? LocalDate.now() : sorted.get(sorted.size() - 1).getDate();
+
+        List<Expense> newItems = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            String id = "UQ-" + (positionIndex == 0 ? "F" : positionIndex == 1 ? "M" : "E") + "-" + i;
+            double amount = i + 1; 
+            LocalDate date;
+            if (positionIndex == 0) {
+                date = earliest.minusDays(count - i);
+            } else if (positionIndex == 2) {
+                date = latest.plusDays(i + 1);
+            } else {
+                int midIndex = sorted.size() / 2;
+                LocalDate midDate = sorted.isEmpty() ? LocalDate.now() : sorted.get(midIndex).getDate();
+                date = midDate.plusDays(i - (count / 2));
+            }
+            newItems.add(new Expense(id, Math.round(amount * 100.0) / 100.0, date, "MISC"));
+        }
+
+        long startNano = System.nanoTime();
+        for (Expense e : newItems) {
+            currentEngine.addExpense(e);
+        }
+        long endNano = System.nanoTime();
+
+        applyFiltersAndRefreshTable();
+        long durationNano = endNano - startNano;
+        double durationMs = durationNano / 1_000_000.0;
+        String posStr = positionIndex == 0 ? "front" : positionIndex == 1 ? "middle" : "end";
+        logArea.append(String.format("➕ Added Batch of %d items to [%s]. Time taken: %d ns (%.4f ms)\n", 
+                count, posStr, durationNano, durationMs));
+    }
+
+    private List<Expense> buildBenchmarkExpenses(int count) {
+        List<Expense> expenses = new ArrayList<>(count);
+        LocalDate latestDate = LocalDate.of(2025, 12, 31);
+        String[] categories = {"GROCERIES", "RENT", "UTILITIES", "ENTERTAINMENT", "MISC"};
+        for (int i = 0; i < count; i++) {
+            expenses.add(new Expense(
+                    "bench-" + i,
+                    1.0 + (i % 500),
+                    latestDate.minusDays(i % 1825),
+                    categories[i % categories.length]
+            ));
+        }
+        return expenses;
+    }
+
+    private BenchmarkResult benchmarkAddExpense(String engineName, Supplier<LedgerService> engineFactory, List<Expense> expenses, int trials) {
+        long totalNano = 0;
+        for (int t = 0; t < trials; t++) {
+            LedgerService benchmarkEngine = engineFactory.get();
+            long start = System.nanoTime();
+            for (Expense expense : expenses) {
+                benchmarkEngine.addExpense(expense);
+            }
+            long end = System.nanoTime();
+            totalNano += end - start;
+        }
+        double averageNsPerItem = (double) totalNano / (trials * expenses.size());
+        double averageMs = totalNano / (trials * 1_000_000.0);
+        return new BenchmarkResult(engineName, expenses.size(), averageNsPerItem, averageMs);
+    }
+
+    private void warmupEngine(LedgerService engine, List<Expense> expenses) {
+        for (Expense expense : expenses) {
+            engine.addExpense(expense);
+        }
+    }
+
+    private void appendLog(String text) {
+        SwingUtilities.invokeLater(() -> logArea.append(text));
+    }
+
+    private static class BenchmarkResult {
+        private final String engineName;
+        private final int size;
+        private final double averageNsPerItem;
+        private final double averageMs;
+
+        private BenchmarkResult(String engineName, int size, double averageNsPerItem, double averageMs) {
+            this.engineName = engineName;
+            this.size = size;
+            this.averageNsPerItem = averageNsPerItem;
+            this.averageMs = averageMs;
+        }
     }
 
     private void handleFocusInputVerification() {
@@ -452,6 +603,23 @@ public class FinanceAppUI extends JFrame {
 
     private void fieldTextReset() {
         filterEndField.setText("2026-12-31");
+    }
+
+    private void handleManualInput() {
+        try {
+            double amount = Double.parseDouble(amountField.getText().trim());
+            if (amount <= 0) throw new IllegalArgumentException();
+            LocalDate date = LocalDate.parse(dateField.getText().trim());
+            String category = (String) categoryBox.getSelectedItem();
+            
+            String id = "MAN-" + UUID.randomUUID().toString().substring(0, 4).toUpperCase();
+            currentEngine.addExpense(new Expense(id, amount, date, category));
+            
+            amountField.setText("");
+            applyFiltersAndRefreshTable();
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Please verify all numerical metrics follow guidelines.", "Input Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private void handleDeposit() {
@@ -611,44 +779,24 @@ public class FinanceAppUI extends JFrame {
             String selectedCategory = (String) filterCategoryBox.getSelectedItem();
 
             List<Expense> rangeResults = currentEngine.getExpensesInDateRange(start, end);
-            filteredList = new ArrayList<>();
+            filteredList.clear();
+
             for (Expense e : rangeResults) {
                 if (selectedCategory.equals("ALL") || e.getCategory().equalsIgnoreCase(selectedCategory)) {
                     filteredList.add(e);
                 }
             }
+
+            filteredList.sort((e1, e2) -> e2.getDate().compareTo(e1.getDate()));
+            
+            int maxPages = getTotalPages();
+            if (currentPage > maxPages) currentPage = Math.max(1, maxPages);
+
             renderTablePage();
             updateSummaryAndGraph();
+
         } catch (DateTimeParseException ex) {
-            JOptionPane.showMessageDialog(this, "Use format YYYY-MM-DD.", "Error", JOptionPane.ERROR_MESSAGE);
-        }
-    }
-
-    private void renderTablePage() {
-        tableModel.setRowCount(0);
-        if (filteredList.isEmpty()) {
-            pageIndicatorLabel.setText("Page 1 of 1");
-            firstPageBtn.setEnabled(false); prevPageBtn.setEnabled(false);
-            nextPageBtn.setEnabled(false); lastPageBtn.setEnabled(false);
-            return;
-        }
-        int totalPages = getTotalPages();
-        if (currentPage > totalPages) currentPage = totalPages;
-
-        pageIndicatorLabel.setText("Page " + currentPage + " of " + totalPages);
-        
-        firstPageBtn.setEnabled(currentPage > 1);
-        prevPageBtn.setEnabled(currentPage > 1);
-        nextPageBtn.setEnabled(currentPage < totalPages);
-        lastPageBtn.setEnabled(currentPage < totalPages);
-
-        int startIndex = (currentPage - 1) * PAGE_SIZE;
-        int endIndex = Math.min(startIndex + PAGE_SIZE, filteredList.size());
-
-        for (int i = startIndex; i < endIndex; i++) {
-            Expense e = filteredList.get(i);
-            String displayAmt = "DEPOSIT".equals(e.getCategory()) ? "+" + e.getAmount() : String.format("%.2f", e.getAmount());
-            tableModel.addRow(new Object[]{e.getId(), e.getDate(), e.getCategory(), displayAmt});
+            JOptionPane.showMessageDialog(this, "Please enter filtering time-ranges in valid YYYY-MM-DD strings.", "Parsing Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -657,34 +805,66 @@ public class FinanceAppUI extends JFrame {
         return (int) Math.ceil((double) filteredList.size() / PAGE_SIZE);
     }
 
-    private void handleManualInput() {
-        try {
-            double amount = Double.parseDouble(amountField.getText().trim());
-            LocalDate date = LocalDate.parse(dateField.getText().trim());
-            String category = (String) categoryBox.getSelectedItem();
+    private void renderTablePage() {
+        tableModel.setRowCount(0);
+        if (filteredList.isEmpty()) {
+            pageIndicatorLabel.setText("Page 1 of 1");
+            return;
+        }
 
-            currentEngine.addExpense(new Expense(UUID.randomUUID().toString().substring(0, 8), amount, date, category));
-            applyFiltersAndRefreshTable();
-            amountField.setText("");
-        } catch (Exception ex) {
-            JOptionPane.showMessageDialog(this, "Check validation inputs.");
+        int maxPages = getTotalPages();
+        if (currentPage > maxPages) currentPage = maxPages;
+
+        pageIndicatorLabel.setText(String.format("Page %d of %d (Total entries: %d)", currentPage, maxPages, filteredList.size()));
+
+        int startIndex = (currentPage - 1) * PAGE_SIZE;
+        int endIndex = Math.min(startIndex + PAGE_SIZE, filteredList.size());
+
+        for (int i = startIndex; i < endIndex; i++) {
+            Expense e = filteredList.get(i);
+            tableModel.addRow(new Object[]{e.getId(), e.getDate(), e.getCategory(), String.format("%.2f", e.getAmount())});
         }
     }
 
     private JPanel createCardPanel() {
         JPanel panel = new JPanel();
         panel.setBackground(CARD_COLOR);
-        panel.setOpaque(true);
         panel.setBorder(BorderFactory.createCompoundBorder(
-            new RoundedBorder(15, Color.LIGHT_GRAY), 
-            new EmptyBorder(15, 15, 15, 15)
+                new RoundedBorder(12, new Color(230, 230, 230)),
+                new EmptyBorder(12, 12, 12, 12)
         ));
         return panel;
     }
 
+    private JTextField createStyledTextField(int columns) {
+        JTextField field = new JTextField(columns);
+        field.setBorder(BorderFactory.createCompoundBorder(
+                new RoundedBorder(6, new Color(200, 200, 200)),
+                new EmptyBorder(4, 6, 4, 6)
+        ));
+        return field;
+    }
+
+    private <T> JComboBox<T> createStyledComboBox(T[] items) {
+        JComboBox<T> box = new JComboBox<>(items);
+        box.setBackground(Color.WHITE);
+        return box;
+    }
+
+    private JButton createStyledButton(String text, Color baseColor) {
+        JButton btn = new JButton(text);
+        btn.setBackground(baseColor);
+        btn.setForeground(Color.WHITE);
+        btn.setFocusPainted(false);
+        btn.setBorder(BorderFactory.createCompoundBorder(
+                new RoundedBorder(6, baseColor.darker()),
+                new EmptyBorder(5, 10, 5, 10)
+        ));
+        return btn;
+    }
+
     private JLabel createStyledLabel(String text) {
         JLabel label = new JLabel(text);
-        label.setFont(MAIN_FONT);
         label.setForeground(TEXT_COLOR);
         return label;
     }
@@ -696,92 +876,29 @@ public class FinanceAppUI extends JFrame {
         return label;
     }
 
-    private JTextField createStyledTextField(int columns) {
-        JTextField field = new JTextField(columns);
-        field.setFont(MAIN_FONT);
-        field.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(Color.LIGHT_GRAY, 1),
-            new EmptyBorder(3, 5, 3, 5)
-        ));
-        return field;
-    }
-
-    private JComboBox<String> createStyledComboBox(String[] items) {
-        JComboBox<String> box = new JComboBox<>(items);
-        box.setFont(MAIN_FONT);
-        box.setBackground(Color.WHITE);
-        box.setForeground(TEXT_COLOR);
-        return box;
-    }
-
-    private JButton createStyledButton(String text, Color bgColor) {
-        JButton button = new JButton(text) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                
-                if (!isEnabled()) {
-                    g2.setColor(new Color(
-                        Math.min(255, bgColor.getRed() + 65),
-                        Math.min(255, bgColor.getGreen() + 65),
-                        Math.min(255, bgColor.getBlue() + 65)
-                    ));
-                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
-                    g2.setColor(new Color(255, 255, 255, 180)); 
-                } else if (getModel().isPressed()) {
-                    g2.setColor(bgColor.darker());
-                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
-                    g2.setColor(Color.WHITE);
-                } else if (getModel().isRollover()) {
-                    g2.setColor(bgColor.brighter());
-                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
-                    g2.setColor(Color.WHITE);
-                } else {
-                    g2.setColor(bgColor);
-                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
-                    g2.setColor(Color.WHITE);
-                }
-                
-                g2.setFont(getFont());
-                FontMetrics fm = g2.getFontMetrics();
-                int x = (getWidth() - fm.stringWidth(getText())) / 2;
-                int y = (getHeight() + fm.getAscent()) / 2 - 2;
-                g2.drawString(getText(), x, y);
-                g2.dispose();
-            }
-        };
-        button.setFont(MAIN_FONT);
-        button.setFocusPainted(false);
-        button.setContentAreaFilled(false);
-        button.setBorder(BorderFactory.createEmptyBorder(5, 15, 5, 15));
-        return button;
-    }
-
     private void styleExpenseTable() {
-        expenseTable.setFont(MAIN_FONT);
-        expenseTable.setRowHeight(28); 
-        expenseTable.setShowGrid(false); 
+        expenseTable.setRowHeight(24);
+        expenseTable.setShowGrid(false);
         expenseTable.setIntercellSpacing(new Dimension(0, 0));
-        expenseTable.setFillsViewportHeight(true);
-        expenseTable.setBackground(CARD_COLOR);
+        expenseTable.setSelectionBackground(new Color(225, 242, 250));
+        expenseTable.setSelectionForeground(TEXT_COLOR);
 
-        expenseTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+        DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
                 Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-                if (isSelected) {
-                    c.setBackground(ACCENT_BLUE.brighter());
-                    c.setForeground(Color.WHITE);
-                } else {
-                    c.setBackground(row % 2 == 0 ? CARD_COLOR : TABLE_STRIPE_COLOR);
-                    c.setForeground(TEXT_COLOR);
+                if (!isSelected) {
+                    c.setBackground(row % 2 == 0 ? Color.WHITE : TABLE_STRIPE_COLOR);
                 }
-                setHorizontalAlignment(column == 3 ? RIGHT : LEFT); 
-                setBorder(new EmptyBorder(0, 8, 0, 8)); 
+                setHorizontalAlignment(JLabel.CENTER);
+                setBorder(new EmptyBorder(0, 8, 0, 8));
                 return c;
             }
-        });
+        };
+
+        for (int i = 0; i < expenseTable.getColumnCount(); i++) {
+            expenseTable.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
+        }
 
         JTableHeader header = expenseTable.getTableHeader();
         header.setFont(HEADER_FONT);
@@ -816,6 +933,9 @@ public class FinanceAppUI extends JFrame {
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new FinanceAppUI().setVisible(true));
+        SwingUtilities.invokeLater(() -> {
+            FinanceAppUI frame = new FinanceAppUI();
+            frame.setVisible(true);
+        });
     }
 }
