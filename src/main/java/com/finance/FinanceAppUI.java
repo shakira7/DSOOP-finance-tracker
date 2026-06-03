@@ -286,7 +286,7 @@ public class FinanceAppUI extends JFrame {
         buttonPanel.add(createStyledLabel("Seed Number:"));
         buttonPanel.add(seedField);
         
-        JButton seedBtn = createStyledButton("Generate 200k Test Data", ACCENT_GREEN);
+        JButton seedBtn = createStyledButton("Generate Test Data", ACCENT_GREEN);
         JButton clearBtn = createStyledButton("Delete All Data", new Color(231, 76, 60)); 
         JButton profileBtn = createStyledButton("Check Method Speeds", ACCENT_BLUE);
         
@@ -332,15 +332,29 @@ public class FinanceAppUI extends JFrame {
                 return;
             }
 
-            logArea.append("⚙️ Generating 200,000 records from December 2025 backward into the past...\n");
-            
+            String countInput = JOptionPane.showInputDialog(this, "How many test records would you like to generate?", "200000");
+            if (countInput == null || countInput.trim().isEmpty()) {
+                return;
+            }
+
+            int recordCount;
+            try {
+                recordCount = Integer.parseInt(countInput.trim());
+                if (recordCount <= 0) throw new IllegalArgumentException();
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Please enter a valid positive integer quantity.", "Invalid Count", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            logArea.append("⚙️ Generating " + recordCount + " records from December 2025 backward into the past...\n");
+
             Timer timer = new Timer(50, event -> {
                 long start = System.currentTimeMillis();
                 LocalDate latestDate = LocalDate.of(2025, 12, 31);
                 String[] categories = {"GROCERIES", "RENT", "UTILITIES", "ENTERTAINMENT", "MISC"};
                 Random seededRand = new Random(seedValue);
 
-                for (int i = 0; i < 200_000; i++) {
+                for (int i = 0; i < recordCount; i++) {
                     long randomDaysBackward = (long) (seededRand.nextDouble() * (365 * 5));
                     double amount = 5.0 + (seededRand.nextDouble() * 495.0);
                     String cat = categories[seededRand.nextInt(categories.length)];
@@ -353,7 +367,7 @@ public class FinanceAppUI extends JFrame {
                     ));
                 }
                 long end = System.currentTimeMillis();
-                logArea.append("➔ [addExpense()] Finished adding 200,000 items. Time taken: " + (end - start) + " ms.\n\n");
+                logArea.append("➔ [addExpense()] Finished adding " + recordCount + " items. Time taken: " + (end - start) + " ms.\n\n");
 
                 applyFiltersAndRefreshTable();
             });
