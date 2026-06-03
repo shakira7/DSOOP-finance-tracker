@@ -40,4 +40,9 @@ public class TreeLedgerServiceImpl implements LedgerService {
         public List<Expense> getAllExpenses() {
         return new ArrayList<>(ledger);
     }
+        
+    @Override
+    public void removeExpense(String id) {
+    ledger.removeIf(expense -> expense.getId().equals(id));
+}
 }

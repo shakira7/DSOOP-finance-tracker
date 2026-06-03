@@ -34,6 +34,7 @@ public class FinanceAppUI extends JFrame {
     private static final Color ACCENT_BLUE = new Color(52, 152, 219);
     private static final Color ACCENT_GREEN = new Color(46, 204, 113);
     private static final Color ACCENT_PURPLE = new Color(155, 89, 182);
+    private static final Color ACCENT_RED = new Color(231, 76, 60);
 
     private static final Font MAIN_FONT = new Font("SansSerif", Font.PLAIN, 13);
     private static final Font HEADER_FONT = new Font("SansSerif", Font.BOLD, 14);
@@ -61,6 +62,10 @@ public class FinanceAppUI extends JFrame {
     private final JButton lastPageBtn = createStyledButton("Last", ACCENT_BLUE);
     private final JTextField jumpToField = createStyledTextField(4);
     private final JButton jumpToBtn = createStyledButton("Go", ACCENT_BLUE);
+
+    private final JButton applyFilterBtn = createStyledButton("Search", ACCENT_BLUE);
+    private final JButton deleteSelectedBtn = createStyledButton("Delete Selected", ACCENT_RED);
+    private final JButton deleteRangeBtn = createStyledButton("Delete Range", ACCENT_RED);
 
     private final JTextField seedField = createStyledTextField(6);
     private final JTextArea logArea = new JTextArea(12, 45);
@@ -172,10 +177,13 @@ public class FinanceAppUI extends JFrame {
         JPanel rightPanel = createCardPanel();
         rightPanel.setLayout(new BorderLayout(5, 5));
 
+        JPanel operationalHeaderPanel = new JPanel(new GridLayout(2, 1, 0, 8));
+        operationalHeaderPanel.setOpaque(false);
+
         JPanel searchFilterBar = new JPanel(new GridBagLayout());
         searchFilterBar.setOpaque(false);
         GridBagConstraints sfGbc = new GridBagConstraints();
-        sfGbc.insets = new Insets(5, 4, 5, 4);
+        sfGbc.insets = new Insets(2, 4, 2, 4);
         sfGbc.fill = GridBagConstraints.HORIZONTAL;
 
         sfGbc.gridx = 0; searchFilterBar.add(createStyledLabel("Category:"), sfGbc);
@@ -185,14 +193,25 @@ public class FinanceAppUI extends JFrame {
         sfGbc.gridx = 4; searchFilterBar.add(createStyledLabel(" To:"), sfGbc);
         sfGbc.gridx = 5; searchFilterBar.add(filterEndField, sfGbc);
         
-        JButton applyFilterBtn = createStyledButton("Search", ACCENT_BLUE);
-        applyFilterBtn.setPreferredSize(new Dimension(80, 25));
+        applyFilterBtn.setPreferredSize(new Dimension(90, 25));
         sfGbc.gridx = 6; sfGbc.weightx = 1.0; searchFilterBar.add(applyFilterBtn, sfGbc);
-        
-        rightPanel.add(searchFilterBar, BorderLayout.NORTH);
+
+        JPanel actionControlBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        actionControlBar.setOpaque(false);
+        deleteSelectedBtn.setPreferredSize(new Dimension(130, 26));
+        deleteRangeBtn.setPreferredSize(new Dimension(120, 26));
+        actionControlBar.add(deleteSelectedBtn);
+        actionControlBar.add(Box.createHorizontalStrut(10));
+        actionControlBar.add(deleteRangeBtn);
+
+        operationalHeaderPanel.add(searchFilterBar);
+        operationalHeaderPanel.add(actionControlBar);
+        rightPanel.add(operationalHeaderPanel, BorderLayout.NORTH);
         
         styleExpenseTable();
-        rightPanel.add(new JScrollPane(expenseTable), BorderLayout.CENTER);
+        JScrollPane tableScrollPane = new JScrollPane(expenseTable);
+        tableScrollPane.setPreferredSize(new Dimension(500, 380));
+        rightPanel.add(tableScrollPane, BorderLayout.CENTER);
 
         JPanel paginationBar = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 5));
         paginationBar.setOpaque(false);
@@ -221,6 +240,9 @@ public class FinanceAppUI extends JFrame {
         depositBtn.addActionListener(e -> handleDeposit());
         applyFilterBtn.addActionListener(e -> { currentPage = 1; applyFiltersAndRefreshTable(); });
         
+        deleteSelectedBtn.addActionListener(e -> handleDeleteSelected());
+        deleteRangeBtn.addActionListener(e -> handleDeleteRange());
+
         firstPageBtn.addActionListener(e -> { currentPage = 1; renderTablePage(); });
         prevPageBtn.addActionListener(e -> { if (currentPage > 1) { currentPage--; renderTablePage(); } });
         nextPageBtn.addActionListener(e -> { if (currentPage < getTotalPages()) { currentPage++; renderTablePage(); } });
@@ -371,10 +393,51 @@ public class FinanceAppUI extends JFrame {
             long startAllNano = System.nanoTime();
             List<Expense> allResults = currentEngine.getAllExpenses();
             long endAllNano = System.nanoTime();
-            logArea.append(String.format("➔ [getAllExpenses()] Retrieved all %d list entries in: %.4f ms\n\n", allResults.size(), (endAllNano - startAllNano)/1_000_000.0));
+            logArea.append(String.format("➔ [getAllExpenses()] Retrieved all %d list entries in: %.4f ms\n", allResults.size(), (endAllNano - startAllNano)/1_000_000.0));
+
+            long startDeleteNano = System.nanoTime();
+            currentEngine.removeExpense("NON_EXISTENT_ID_FOR_BENCHMARK");
+            long endDeleteNano = System.nanoTime();
+            logArea.append(String.format("➔ [removeExpense()] Single id removal traversal completed in: %.4f ms\n", (endDeleteNano - startDeleteNano)/1_000_000.0));
+
+            String yearInput = JOptionPane.showInputDialog(this, "Enter a year to benchmark batch removal speed (or type 'X' to cancel):");
+            if (yearInput != null && !yearInput.trim().isEmpty() && !yearInput.trim().equalsIgnoreCase("X")) {
+                try {
+                    int targetYear = Integer.parseInt(yearInput.trim());
+                    LocalDate yearStart = LocalDate.of(targetYear, 1, 1);
+                    LocalDate yearEnd = LocalDate.of(targetYear, 12, 31);
+                    
+                    logArea.append(String.format("⏳ Batch cleaning all records for the year %d...\n", targetYear));
+                    
+                    long startBatchDelete = System.currentTimeMillis();
+                    List<Expense> elementsInYear = currentEngine.getExpensesInDateRange(yearStart, yearEnd);
+                    int batchCount = elementsInYear.size();
+                    
+                    for (Expense exp : elementsInYear) {
+                        currentEngine.removeExpense(exp.getId());
+                    }
+                    long endBatchDelete = System.currentTimeMillis();
+                    
+                    logArea.append(String.format("➔ [Batch Delete Year] Cleaned %d records for %d in: %d ms\n\n", batchCount, targetYear, (endBatchDelete - startBatchDelete)));
+                    applyFiltersAndRefreshTable();
+                } catch (Exception ex) {
+                    logArea.append("❌ Year benchmark aborted due to formatting processing issue.\n\n");
+                }
+            } else {
+                logArea.append("⏩ Year deletion benchmark canceled by configuration parameter input.\n\n");
+            }
         });
 
         return devPanel;
+    }
+
+    private void handleFocusInputVerification() {
+        if (filterStartField.getText().trim().isEmpty()) filterStartField.setText("2020-01-01");
+        if (filterEndField.getText().trim().isEmpty()) fieldTextReset();
+    }
+
+    private void fieldTextReset() {
+        filterEndField.setText("2026-12-31");
     }
 
     private void handleDeposit() {
@@ -390,6 +453,50 @@ public class FinanceAppUI extends JFrame {
             applyFiltersAndRefreshTable();
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "Please enter a valid positive numeric amount.", "Input Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void handleDeleteSelected() {
+        int selectedRow = expenseTable.getSelectedRow();
+        if (selectedRow == -1) {
+            JOptionPane.showMessageDialog(this, "Please choose a transaction from the list below to delete first.", "Selection Missing", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        
+        String transactionId = tableModel.getValueAt(selectedRow, 0).toString();
+        
+        int confirmation = JOptionPane.showConfirmDialog(this, "Permanently remove transaction ID: " + transactionId + "?", "Confirm Removal", JOptionPane.YES_NO_OPTION);
+        if (confirmation == JOptionPane.YES_OPTION) {
+            currentEngine.removeExpense(transactionId);
+            applyFiltersAndRefreshTable();
+        }
+    }
+
+    private void handleDeleteRange() {
+        try {
+            handleFocusInputVerification();
+            LocalDate start = LocalDate.parse(filterStartField.getText().trim());
+            LocalDate end = LocalDate.parse(filterEndField.getText().trim());
+            
+            int confirmation = JOptionPane.showConfirmDialog(this, "Permanently remove ALL transactions matching criteria from " + start + " to " + end + "?", "Confirm Batch Deletion", JOptionPane.YES_NO_OPTION);
+            if (confirmation == JOptionPane.YES_OPTION) {
+                List<Expense> entriesToDelete = currentEngine.getExpensesInDateRange(start, end);
+                String selectedCategory = (String) filterCategoryBox.getSelectedItem();
+                
+                int deletedCount = 0;
+                for (Expense e : entriesToDelete) {
+                    if (selectedCategory.equals("ALL") || e.getCategory().equalsIgnoreCase(selectedCategory)) {
+                        currentEngine.removeExpense(e.getId());
+                        deletedCount++;
+                    }
+                }
+                
+                JOptionPane.showMessageDialog(this, "Successfully scrubbed " + deletedCount + " matched entries from core metrics.", "Scrub Complete", JOptionPane.INFORMATION_MESSAGE);
+                currentPage = 1;
+                applyFiltersAndRefreshTable();
+            }
+        } catch (DateTimeParseException ex) {
+            JOptionPane.showMessageDialog(this, "Set validation ranges via valid YYYY-MM-DD guidelines first.", "Input Processing Issue", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -484,6 +591,7 @@ public class FinanceAppUI extends JFrame {
 
     private void applyFiltersAndRefreshTable() {
         try {
+            handleFocusInputVerification();
             LocalDate start = LocalDate.parse(filterStartField.getText().trim());
             LocalDate end = LocalDate.parse(filterEndField.getText().trim());
             String selectedCategory = (String) filterCategoryBox.getSelectedItem();
