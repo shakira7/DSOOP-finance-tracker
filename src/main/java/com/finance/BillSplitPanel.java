@@ -30,7 +30,6 @@ public class BillSplitPanel extends JPanel {
         bsGbc.gridy = 3;
         add(splitResultLabel, bsGbc);
 
-        // Spacer to push everything up neatly
         bsGbc.gridy = 4; bsGbc.weighty = 1.0;
         add(new JPanel(), bsGbc);
 
