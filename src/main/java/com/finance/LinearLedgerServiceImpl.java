@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Iterator;
 
 public class LinearLedgerServiceImpl implements LedgerService {
     private final List<Expense> ledger = new ArrayList<>();
@@ -52,6 +53,18 @@ public class LinearLedgerServiceImpl implements LedgerService {
     
     @Override
     public void removeExpense(String id) {
-        ledger.removeIf(expense -> expense.getId().equals(id));
+        Iterator<Expense> iterator = ledger.iterator();
+        while (iterator.hasNext()) {
+            Expense expense = iterator.next();
+            if (expense.getId().equals(id)) {
+                // Update category total before removing the expense
+                double currentTotal = categoryTotals.getOrDefault(expense.getCategory(), 0.0);
+                categoryTotals.put(expense.getCategory(), currentTotal - expense.getAmount());
+                
+                // Remove from the ledger
+                iterator.remove();
+                break;
+            }
+        }
     }
 }
