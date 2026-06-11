@@ -3,6 +3,7 @@ package com.finance;
 import java.time.LocalDate;
 import java.util.Objects;
 
+// expense data model
 public class Expense implements Comparable<Expense> {
     private final String id;
     private final double amount;

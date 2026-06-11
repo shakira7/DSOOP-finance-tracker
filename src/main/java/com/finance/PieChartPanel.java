@@ -1,9 +1,16 @@
 package com.finance;
 
-import javax.swing.*;
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.util.Map;
 
+import javax.swing.JPanel;
+
+// expense distribution pie chart
 public class PieChartPanel extends JPanel {
     private Map<String, Double> categoryTotals;
 

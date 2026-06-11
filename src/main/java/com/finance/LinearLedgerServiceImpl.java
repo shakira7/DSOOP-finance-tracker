@@ -1,8 +1,12 @@
 package com.finance;
 
 import java.time.LocalDate;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
+// list-based expense storage
 public class LinearLedgerServiceImpl implements LedgerService {
     private final List<Expense> ledger = new ArrayList<>();
     private final Map<String, Double> categoryTotals = new HashMap<>();

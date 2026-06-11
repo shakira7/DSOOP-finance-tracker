@@ -1,12 +1,19 @@
 package com.finance;
 
-import javax.swing.*;
-import javax.swing.border.AbstractBorder;
-import javax.swing.border.EmptyBorder;
-import javax.swing.table.DefaultTableCellRenderer;
-import javax.swing.table.DefaultTableModel;
-import javax.swing.table.JTableHeader;
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.GridLayout;
+import java.awt.Insets;
+import java.awt.RenderingHints;
 import java.awt.geom.RoundRectangle2D;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -18,7 +25,33 @@ import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JSeparator;
+import javax.swing.JTabbedPane;
+import javax.swing.JTable;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+import javax.swing.UIManager;
+import javax.swing.border.AbstractBorder;
+import javax.swing.border.EmptyBorder;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.JTableHeader;
+
+// main application ui with dashboard and system profiler
 public class FinanceAppUI extends JFrame {
+    // wallet balance tracking
     private LedgerService currentEngine = new LinearLedgerServiceImpl();
     private double currentBalance = 5000.00; 
     
@@ -40,21 +73,25 @@ public class FinanceAppUI extends JFrame {
     private static final Font HEADER_FONT = new Font("SansSerif", Font.BOLD, 14);
     private static final Font BALANCE_FONT = new Font("SansSerif", Font.BOLD, 18);
 
+    // expense entry form
     private final JTextField amountField = createStyledTextField(10);
     private final JTextField dateField = createStyledTextField(10);
     private final JComboBox<String> categoryBox = createStyledComboBox(new String[]{"GROCERIES", "RENT", "UTILITIES", "ENTERTAINMENT", "MISC"});
     private final JTextArea summaryArea = new JTextArea(10, 22);
     private final JLabel balanceLabel = new JLabel("Wallet Balance: $5000.00");
     
+    // visualizations
     private final PieChartPanel pieChart = new PieChartPanel();
     private final BillSplitPanel billSplitPanel = new BillSplitPanel();
 
+    // filtering and expense table
     private final JComboBox<String> filterCategoryBox = createStyledComboBox(new String[]{"ALL", "GROCERIES", "RENT", "UTILITIES", "ENTERTAINMENT", "MISC", "DEPOSIT"});
     private final JTextField filterStartField = createStyledTextField(7);
     private final JTextField filterEndField = createStyledTextField(7);
     private final DefaultTableModel tableModel = new DefaultTableModel(new Object[]{"ID", "Date", "Category", "Amount ($)"}, 0);
     private final JTable expenseTable = new JTable(tableModel);
     
+    // pagination
     private final JButton firstPageBtn = createStyledButton("First", ACCENT_BLUE);
     private final JButton prevPageBtn = createStyledButton("<- Previous", ACCENT_BLUE);
     private final JLabel pageIndicatorLabel = new JLabel("Page 1 of 1");
@@ -63,10 +100,12 @@ public class FinanceAppUI extends JFrame {
     private final JTextField jumpToField = createStyledTextField(4);
     private final JButton jumpToBtn = createStyledButton("Go", ACCENT_BLUE);
 
+    // delete operations
     private final JButton applyFilterBtn = createStyledButton("Search", ACCENT_BLUE);
     private final JButton deleteSelectedBtn = createStyledButton("Delete Selected", ACCENT_RED);
     private final JButton deleteRangeBtn = createStyledButton("Delete Range", ACCENT_RED);
 
+    // system profiler
     private final JTextField seedField = createStyledTextField(6);
     private final JTextArea logArea = new JTextArea(12, 45);
     private final JLabel engineLabel = new JLabel("Active Engine: ArrayList + HashMap (Solution 1)");
@@ -370,6 +409,11 @@ public class FinanceAppUI extends JFrame {
                 logArea.append("➔ [addExpense()] Finished adding " + recordCount + " items. Time taken: " + (end - start) + " ms.\n\n");
 
                 applyFiltersAndRefreshTable();
+
+                SwingUtilities.invokeLater(() -> {
+                    int doInsert = JOptionPane.showConfirmDialog(this, "Insert unique data (amounts 1..N) now?", "Insert Unique Data", JOptionPane.YES_NO_OPTION);
+                    if (doInsert == JOptionPane.YES_OPTION) insertUniqueDataDialog();
+                });
             });
             timer.setRepeats(false);
             timer.start();
@@ -669,6 +713,90 @@ public class FinanceAppUI extends JFrame {
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "Check validation inputs.");
         }
+    }
+
+    private void insertUniqueDataDialog() {
+        String countInput = JOptionPane.showInputDialog(this, "How many unique records to insert? (1 - 100000)", "1000");
+        if (countInput == null || countInput.trim().isEmpty()) return;
+
+        int count;
+        try {
+            count = Integer.parseInt(countInput.trim());
+            if (count < 1 || count > 100000) throw new IllegalArgumentException();
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Please enter a valid integer between 1 and 100000.", "Invalid Count", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        Object[] options = {"Front", "Middle", "End"};
+        int pos = JOptionPane.showOptionDialog(this, "Insert position:", "Insert Position",
+                JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[2]);
+        if (pos == JOptionPane.CLOSED_OPTION) return;
+
+        performUniqueInsertion(count, pos);
+    }
+
+    private void performUniqueInsertion(int count, int positionIndex) {
+        List<Expense> existing = currentEngine.getAllExpenses();
+
+        List<Expense> sorted = new ArrayList<>(existing);
+        sorted.sort((a, b) -> {
+            int d = a.getDate().compareTo(b.getDate());
+            if (d != 0) return d;
+            return a.getId().compareTo(b.getId());
+        });
+
+        LocalDate earliest = sorted.isEmpty() ? LocalDate.now() : sorted.get(0).getDate();
+        LocalDate latest = sorted.isEmpty() ? LocalDate.now() : sorted.get(sorted.size() - 1).getDate();
+
+        List<Expense> newItems = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            String id = UUID.nameUUIDFromBytes(("uq_" + System.nanoTime() + "_" + i).getBytes()).toString().substring(0, 8);
+            double amount = i + 1; // unique amounts 1..N
+            LocalDate date;
+            if (positionIndex == 0) { // Front
+                date = earliest.minusDays(count - i);
+            } else if (positionIndex == 2) { // End
+                date = latest.plusDays(i + 1);
+            } else { // Middle
+                int midIndex = sorted.size() / 2;
+                LocalDate midDate = sorted.isEmpty() ? LocalDate.now() : sorted.get(midIndex).getDate();
+                date = midDate.plusDays(i - (count / 2));
+            }
+            newItems.add(new Expense(id, Math.round(amount * 100.0) / 100.0, date, "MISC"));
+        }
+
+        // Rebuild order for linear engine, or just add for tree (dates will control order)
+        List<Expense> rebuilt = new ArrayList<>();
+        if (currentEngine instanceof LinearLedgerServiceImpl) {
+            if (positionIndex == 0) { // front
+                rebuilt.addAll(newItems);
+                rebuilt.addAll(existing);
+            } else if (positionIndex == 2) { // end
+                rebuilt.addAll(existing);
+                rebuilt.addAll(newItems);
+            } else { // middle
+                int mid = existing.size() / 2;
+                rebuilt.addAll(existing.subList(0, mid));
+                rebuilt.addAll(newItems);
+                rebuilt.addAll(existing.subList(mid, existing.size()));
+            }
+        } else {
+            // For tree-backed engine we'll try to preserve original order but dates will place new items
+            rebuilt.addAll(existing);
+            rebuilt.addAll(newItems);
+        }
+
+        long startNano = System.nanoTime();
+        currentEngine.clear();
+        for (Expense e : rebuilt) currentEngine.addExpense(e);
+        long endNano = System.nanoTime();
+
+        applyFiltersAndRefreshTable();
+        long durationNano = endNano - startNano;
+        double durationMs = durationNano / 1_000_000.0;
+        String posStr = positionIndex == 0 ? "front" : positionIndex == 1 ? "middle" : "end";
+        logArea.append(String.format("➕ Inserted %d unique records at %s. Time taken: %d ns (%.4f ms)\n", count, posStr, durationNano, durationMs));
     }
 
     private JPanel createCardPanel() {

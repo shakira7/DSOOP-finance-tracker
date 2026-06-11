@@ -1,8 +1,14 @@
 package com.finance;
 
 import java.time.LocalDate;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
+// tree-based expense storage with date range indexing
 public class TreeLedgerServiceImpl implements LedgerService {
     private final TreeSet<Expense> ledger = new TreeSet<>();
     private final Map<String, TreeMap<LocalDate, List<Expense>>> categoryTreeMap = new HashMap<>();

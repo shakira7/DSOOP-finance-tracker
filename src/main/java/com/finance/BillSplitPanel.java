@@ -1,8 +1,19 @@
 package com.finance;
 
-import javax.swing.*;
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
 
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JTextField;
+
+// group bill splitter
 public class BillSplitPanel extends JPanel {
     private final JTextField totalBillField = new JTextField(10);
     private final JTextField peopleField = new JTextField(10);
