@@ -391,12 +391,54 @@ public class FinanceAppUI extends JFrame {
                 long start = System.currentTimeMillis();
                 LocalDate latestDate = LocalDate.of(2025, 12, 31);
                 String[] categories = {"GROCERIES", "RENT", "UTILITIES", "ENTERTAINMENT", "MISC"};
+                double[] baseWeights = {0.30, 0.25, 0.20, 0.15, 0.10};
                 Random seededRand = new Random(seedValue);
+
+                // Randomize weights per seed to create varied category distributions
+                double[] categoryWeights = new double[baseWeights.length];
+                double weightSum = 0.0;
+                for (int j = 0; j < baseWeights.length; j++) {
+                    double modifier = 0.5 + (seededRand.nextDouble() * 1.5);
+                    categoryWeights[j] = baseWeights[j] * modifier;
+                    weightSum += categoryWeights[j];
+                }
+                // Normalize weights to sum to 1.0
+                for (int j = 0; j < categoryWeights.length; j++) {
+                    categoryWeights[j] = categoryWeights[j] / weightSum;
+                }
 
                 for (int i = 0; i < recordCount; i++) {
                     long randomDaysBackward = (long) (seededRand.nextDouble() * (365 * 5));
-                    double amount = 5.0 + (seededRand.nextDouble() * 495.0);
-                    String cat = categories[seededRand.nextInt(categories.length)];
+
+                    double selector = seededRand.nextDouble();
+                    String cat = categories[categories.length - 1];
+                    double cumulative = 0.0;
+                    for (int j = 0; j < categoryWeights.length; j++) {
+                        cumulative += categoryWeights[j];
+                        if (selector <= cumulative) {
+                            cat = categories[j];
+                            break;
+                        }
+                    }
+
+                    double amount;
+                    switch (cat) {
+                        case "RENT":
+                            amount = 800.0 + (seededRand.nextDouble() * 400.0);
+                            break;
+                        case "GROCERIES":
+                            amount = 20.0 + (seededRand.nextDouble() * 180.0);
+                            break;
+                        case "UTILITIES":
+                            amount = 40.0 + (seededRand.nextDouble() * 160.0);
+                            break;
+                        case "ENTERTAINMENT":
+                            amount = 5.0 + (seededRand.nextDouble() * 95.0);
+                            break;
+                        default:
+                            amount = 5.0 + (seededRand.nextDouble() * 95.0);
+                            break;
+                    }
 
                     currentEngine.addExpense(new Expense(
                             UUID.nameUUIDFromBytes(("id_" + seedValue + "_" + i).getBytes()).toString().substring(0, 8),
